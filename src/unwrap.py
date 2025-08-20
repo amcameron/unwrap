@@ -5,8 +5,7 @@ import sys
 import cv2
 import numpy as np
 
-def unwrap(cap: cv2.VideoCapture):
-
+def unwrap(cap: cv2.VideoCapture) -> np.ndarray | None:
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_number = 0
