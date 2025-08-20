@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
 import argparse
+import sys
 
 import cv2
 import numpy as np
 
-def main():
-    parser = argparse.ArgumentParser(description="A commandline tool that processes an input file.")
-    parser.add_argument('input_file', type=str, help='Path to the input file')
-    parser.add_argument('--output', type=str, default='output.png', help='Path to the output image file')
-    args = parser.parse_args()
-
-    cap = cv2.VideoCapture(args.input_file)
-    if not cap.isOpened():
-        print(f"Error: Cannot open video file {args.input_file}")
-        return
+def unwrap(cap: cv2.VideoCapture):
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -118,8 +110,18 @@ def main():
 
     # Save output image
     output_img = np.hstack(output_columns)
-    cv2.imwrite(args.output, output_img)
-    print(f"Saved output image with {frame_number} columns to {args.output}")
+    return output_img
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="A commandline tool that processes an input file.")
+    parser.add_argument('input_file', type=str, help='Path to the input file')
+    parser.add_argument('--output', type=str, default='output.png', help='Path to the output image file')
+    args = parser.parse_args()
+
+    cap = cv2.VideoCapture(args.input_file)
+    if not cap.isOpened():
+        sys.exit(f"Error: Cannot open video file {args.input_file}")
+
+    output_img = unwrap(cap)
+    cv2.imwrite(args.output, output_img)
+    print(f"Saved output image with {output_img.shape[1]} columns to {args.output}")
