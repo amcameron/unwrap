@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
 import argparse
 import sys
+from typing import Union
 
 import cv2
 import numpy as np
 
-def unwrap(cap: cv2.VideoCapture) -> np.ndarray | None:
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
+
+def unwrap(video: cv2.VideoCapture) -> Union[np.ndarray, None]:
+    total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_number = 0
     smoothed_theta = None
     smoothing_alpha = 0.4  # Smoothing factor (0 < alpha <= 1)
     # Read first frame to get dimensions
-    ret, frame = cap.read()
+    ret, frame = video.read()
     if not ret:
         print("No frames found in video.")
-        return
+        return None
     h, w, c = frame.shape
     # Prepare output image: height x total_frames x 3
     output_columns = []
-    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Reset to first frame
+    video.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Reset to first frame
 
     while True:
-        print(f"\rProcessing frame: {frame_number}/{total_frames}", end='', flush=True)
-        ret, frame = cap.read()
+        print(f"\rProcessing frame: {frame_number}/{total_frames}", end="", flush=True)
+        ret, frame = video.read()
         if not ret:
             break
         # Convert to grayscale for edge detection
@@ -32,7 +33,14 @@ def unwrap(cap: cv2.VideoCapture) -> np.ndarray | None:
         edges = cv2.Canny(gray, 100, 255)
 
         # Hough transform to find lines
-        lines_hough = cv2.HoughLines(edges, 1, np.pi / 180, threshold=150, min_theta=-np.pi / 6, max_theta=np.pi / 6)
+        lines_hough = cv2.HoughLines(
+            edges,
+            1,
+            np.pi / 180,
+            threshold=150,
+            min_theta=-np.pi / 6,
+            max_theta=np.pi / 6,
+        )
         median_theta = None
         if lines_hough is not None:
             thetas = [line[0][1] for line in lines_hough]
@@ -53,12 +61,12 @@ def unwrap(cap: cv2.VideoCapture) -> np.ndarray | None:
             x_c, y_c = w // 2, h // 2
             # Find two edge points for the line
             points = []
-            for x_edge in [0, w-1]:
+            for x_edge in [0, w - 1]:
                 if abs(b) > 1e-6:
                     y = int(round(y_c - ((x_edge - x_c) * a) / b))
                     if 0 <= y < h:
                         points.append((x_edge, y))
-            for y_edge in [0, h-1]:
+            for y_edge in [0, h - 1]:
                 if abs(a) > 1e-6:
                     x = int(round(x_c - ((y_edge - y_c) * b) / a))
                     if 0 <= x < w:
@@ -68,8 +76,10 @@ def unwrap(cap: cv2.VideoCapture) -> np.ndarray | None:
                 max_dist = -1
                 pt1, pt2 = points[0], points[1]
                 for i in range(len(points)):
-                    for j in range(i+1, len(points)):
-                        dist = (points[i][0] - points[j][0])**2 + (points[i][1] - points[j][1])**2
+                    for j in range(i + 1, len(points)):
+                        dist = (points[i][0] - points[j][0]) ** 2 + (
+                            points[i][1] - points[j][1]
+                        ) ** 2
                         if dist > max_dist:
                             max_dist = dist
                             pt1, pt2 = points[i], points[j]
@@ -81,8 +91,8 @@ def unwrap(cap: cv2.VideoCapture) -> np.ndarray | None:
                     # Sample pixels along the line
                     sampled = np.zeros((line_length, 1, 3), dtype=frame.dtype)
                     for i in range(line_length):
-                        x = round(x_vals[i])
-                        y = round(y_vals[i])
+                        x = np.round(x_vals[i]).astype(int)
+                        y = np.round(y_vals[i]).astype(int)
                         if 0 <= x < w and 0 <= y < h:
                             sampled[i, 0, :] = frame[y, x, :]
                         else:
@@ -93,28 +103,31 @@ def unwrap(cap: cv2.VideoCapture) -> np.ndarray | None:
                     sampled_resized = np.zeros((h, 1, 3), dtype=frame.dtype)
                     for ch in range(3):
                         sampled_resized[:, 0, ch] = np.interp(
-                            y_indices,
-                            np.arange(line_length),
-                            sampled[:, 0, ch]
+                            y_indices, np.arange(line_length), sampled[:, 0, ch]
                         )
                     output_columns.append(sampled_resized)
         frame_number += 1
     print()
 
-    cap.release()
+    video.release()
 
     if frame_number == 0:
         print("No frames found in video.")
-        return
+        return None
 
     # Save output image
-    output_img = np.hstack(output_columns)
-    return output_img
+    result = np.hstack(output_columns)
+    return result
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="A commandline tool that processes an input file.")
-    parser.add_argument('input_file', type=str, help='Path to the input file')
-    parser.add_argument('--output', type=str, default='output.png', help='Path to the output image file')
+    parser = argparse.ArgumentParser(
+        description="A commandline tool that processes an input file."
+    )
+    parser.add_argument("input_file", type=str, help="Path to the input file")
+    parser.add_argument(
+        "--output", type=str, default="output.png", help="Path to the output image file"
+    )
     args = parser.parse_args()
 
     cap = cv2.VideoCapture(args.input_file)
